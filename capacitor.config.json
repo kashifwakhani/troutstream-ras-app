@@ -1,0 +1,9 @@
+{
+  "appId": "com.troutstream.ras",
+  "appName": "TroutStream RAS",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}

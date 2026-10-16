@@ -1,0 +1,6 @@
+{
+  "name": "TroutStream RAS — Rainbow Trout Farm Manager",
+  "description": "Comprehensive Recirculating Aquaculture System (RAS) manager for Rainbow Trout farms. Real-time water quality monitoring, biomass tracking, feeding logs, equipment health, and analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

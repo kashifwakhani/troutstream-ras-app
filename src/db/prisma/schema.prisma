@@ -1,0 +1,321 @@
+// Prisma Schema for Rainbow Trout RAS Farm Manager
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  role         String    @default("operator")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Farm {
+  id                 String                @id @default(uuid())
+  name               String
+  location           String?
+  species            String                @default("Oncorhynchus mykiss")
+  totalWaterVolumeM3 Float                 @default(100.0) @map("total_water_volume_m3")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  tanks              Tank[]
+  waterQuality       WaterQualityReading[]
+  feedProducts       FeedProduct[]
+  feedRecords        FeedRecord[]
+  stockMovements     FishStockMovement[]
+  samplingRecords    FishSamplingRecord[]
+  mortalityRecords   MortalityRecord[]
+  equipment          Equipment[]
+  resourceUsage      ResourceUsage[]
+  inventoryItems     InventoryItem[]
+  expenses           Expense[]
+  activityLogs       ActivityLog[]
+
+  @@map("farms")
+}
+
+model Tank {
+  id                   String                @id @default(uuid())
+  farmId               String                @map("farm_id")
+  name                 String
+  code                 String
+  tankType             String                @map("tank_type")
+  volumeM3             Float                 @map("volume_m3")
+  diameterM            Float?                @map("diameter_m")
+  depthM               Float?                @map("depth_m")
+  fishCount            Int                   @default(0) @map("fish_count")
+  avgWeightG           Float                 @default(0) @map("avg_weight_g")
+  stockingDate         DateTime?             @map("stocking_date")
+  targetHarvestWeightG Float                 @default(450.0) @map("target_harvest_weight_g")
+  status               String                @default("active")
+  waterLoopId          String                @default("loop-1") @map("water_loop_id")
+  notes                String?
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  farm                 Farm                  @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  waterQuality         WaterQualityReading[]
+  feedRecords          FeedRecord[]
+  samplingRecords      FishSamplingRecord[]
+  mortalityRecords     MortalityRecord[]
+  sourceMovements      FishStockMovement[]   @relation("SourceTank")
+  destMovements        FishStockMovement[]   @relation("DestTank")
+
+  @@map("tanks")
+}
+
+model WaterQualityReading {
+  id                  String   @id @default(uuid())
+  farmId              String   @map("farm_id")
+  tankId              String?  @map("tank_id")
+  waterLoopId         String   @map("water_loop_id")
+  recordedAt          DateTime @map("recorded_at")
+  temperatureC        Float    @map("temperature_c")
+  dissolvedOxygenMgL  Float    @map("dissolved_oxygen_mgl")
+  ph                  Float
+  tanMgL              Float    @map("tan_mgl")
+  unionizedAmmoniaMgL Float    @map("unionized_ammonia_mgl")
+  nitriteMgL          Float    @map("nitrite_mgl")
+  nitrateMgL          Float    @map("nitrate_mgl")
+  alkalinityMgL       Float    @map("alkalinity_mgl")
+  co2MgL              Float    @map("co2_mgl")
+  flowRateM3H         Float?   @map("flow_rate_m3h")
+  waterLevelPct       Float?   @map("water_level_pct")
+  operator            String
+  notes               String?
+  status              String   @default("normal")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  farm                Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  tank                Tank?    @relation(fields: [tankId], references: [id], onDelete: SetNull)
+
+  @@index([farmId, recordedAt(sort: Desc)])
+  @@map("water_quality_readings")
+}
+
+model FeedProduct {
+  id               String       @id @default(uuid())
+  farmId           String       @map("farm_id")
+  brand            String
+  productName      String       @map("product_name")
+  pelletSizeMm     Float        @map("pellet_size_mm")
+  proteinPct       Float        @map("protein_pct")
+  fatPct           Float        @map("fat_pct")
+  unitPricePerKg   Float        @map("unit_price_per_kg")
+  stockRemainingKg Float        @default(0) @map("stock_remaining_kg")
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  farm             Farm         @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  feedRecords      FeedRecord[]
+
+  @@map("feed_products")
+}
+
+model FeedRecord {
+  id             String       @id @default(uuid())
+  farmId         String       @map("farm_id")
+  tankId         String       @map("tank_id")
+  feedProductId  String?      @map("feed_product_id")
+  recordedAt     DateTime     @map("recorded_at")
+  quantityKg     Float        @map("quantity_kg")
+  sessionsCount  Int          @default(3) @map("sessions_count")
+  feedingMethod  String       @default("automatic_feeder") @map("feeding_method")
+  batchNumber    String?      @map("batch_number")
+  operator       String
+  appetiteRating String?      @map("appetite_rating")
+  costEstimate   Float        @default(0.0) @map("cost_estimate")
+  notes          String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  farm           Farm         @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  tank           Tank         @relation(fields: [tankId], references: [id], onDelete: Cascade)
+  feedProduct    FeedProduct? @relation(fields: [feedProductId], references: [id], onDelete: SetNull)
+
+  @@index([tankId, recordedAt(sort: Desc)])
+  @@map("feed_records")
+}
+
+model FishStockMovement {
+  id           String    @id @default(uuid())
+  farmId       String    @map("farm_id")
+  movementType String    @map("movement_type")
+  sourceTankId String?   @map("source_tank_id")
+  destTankId   String?   @map("dest_tank_id")
+  fishCount    Int       @map("fish_count")
+  avgWeightG   Float     @map("avg_weight_g")
+  biomassKg    Float     @map("biomass_kg")
+  reason       String
+  operator     String
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  farm         Farm      @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  sourceTank   Tank?     @relation("SourceTank", fields: [sourceTankId], references: [id], onDelete: SetNull)
+  destTank     Tank?     @relation("DestTank", fields: [destTankId], references: [id], onDelete: SetNull)
+
+  @@map("fish_stock_movements")
+}
+
+model FishSamplingRecord {
+  id                  String   @id @default(uuid())
+  farmId              String   @map("farm_id")
+  tankId              String   @map("tank_id")
+  sampledAt           DateTime @map("sampled_at")
+  sampledCount        Int      @map("sampled_count")
+  avgWeightG          Float    @map("avg_weight_g")
+  minWeightG          Float?   @map("min_weight_g")
+  maxWeightG          Float?   @map("max_weight_g")
+  avgLengthCm         Float?   @map("avg_length_cm")
+  conditionFactorK    Float?   @map("condition_factor_k")
+  sgrPctDay           Float?   @map("sgr_pct_day")
+  adgGramsDay         Float?   @map("adg_grams_day")
+  estimatedBiomassKg  Float?   @map("estimated_biomass_kg")
+  daysToTargetHarvest Int?     @map("days_to_target_harvest")
+  operator            String
+  notes               String?
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  farm                Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  tank                Tank     @relation(fields: [tankId], references: [id], onDelete: Cascade)
+
+  @@map("fish_sampling_records")
+}
+
+model MortalityRecord {
+  id             String   @id @default(uuid())
+  farmId         String   @map("farm_id")
+  tankId         String   @map("tank_id")
+  recordedAt     DateTime @map("recorded_at")
+  deadCount      Int      @map("dead_count")
+  suspectedCause String   @map("suspected_cause")
+  behaviorNotes  String?  @map("behavior_notes")
+  treatmentTaken String?  @map("treatment_taken")
+  medicationUsed String?  @map("medication_used")
+  dosage         String?
+  operator       String
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  farm           Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  tank           Tank     @relation(fields: [tankId], references: [id], onDelete: Cascade)
+
+  @@map("mortality_records")
+}
+
+model Equipment {
+  id               String              @id @default(uuid())
+  farmId           String              @map("farm_id")
+  name             String
+  category         String
+  location         String?
+  status           String              @default("running")
+  powerKw          Float?              @map("power_kw")
+  installationDate DateTime?           @map("installation_date")
+  lastServiceDate  DateTime?           @map("last_service_date")
+  nextServiceDue   DateTime?           @map("next_service_due")
+  runHours         Float               @default(0) @map("run_hours")
+  notes            String?
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  farm             Farm                @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  maintenances     MaintenanceRecord[]
+
+  @@map("equipment")
+}
+
+model MaintenanceRecord {
+  id            String    @id @default(uuid())
+  farmId        String    @map("farm_id")
+  equipmentId   String    @map("equipment_id")
+  recordedAt    DateTime  @map("recorded_at")
+  taskType      String    @map("task_type")
+  description   String
+  partsReplaced String?   @map("parts_replaced")
+  cost          Float     @default(0.0)
+  operator      String
+  nextDueDate   DateTime? @map("next_due_date")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  equipment     Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@map("maintenance_records")
+}
+
+model ResourceUsage {
+  id                String   @id @default(uuid())
+  farmId            String   @map("farm_id")
+  usageDate         DateTime @map("usage_date")
+  freshwaterAddedM3 Float    @default(0) @map("freshwater_added_m3")
+  waterDischargedM3 Float    @default(0) @map("water_discharged_m3")
+  electricityKwh    Float    @default(0) @map("electricity_kwh")
+  liquidOxygenKg    Float    @default(0) @map("liquid_oxygen_kg")
+  dailyCost         Float    @default(0) @map("daily_cost")
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  farm              Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@map("resource_usage")
+}
+
+model InventoryItem {
+  id           String    @id @default(uuid())
+  farmId       String    @map("farm_id")
+  name         String
+  category     String
+  currentStock Float     @default(0) @map("current_stock")
+  unit         String
+  minThreshold Float     @default(0) @map("min_threshold")
+  unitCost     Float     @default(0) @map("unit_cost")
+  supplier     String?
+  lastRestocked DateTime? @map("last_restocked")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  farm         Farm      @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_items")
+}
+
+model Expense {
+  id            String   @id @default(uuid())
+  farmId        String   @map("farm_id")
+  expenseDate   DateTime @map("expense_date")
+  category      String
+  description   String
+  amount        Float
+  vendor        String?
+  paymentMethod String?  @map("payment_method")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  farm          Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@map("expenses")
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  farmId    String   @map("farm_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  action    String
+  details   String
+  operator  String
+  category  String
+  severity  String   @default("info")
+
+  farm      Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
